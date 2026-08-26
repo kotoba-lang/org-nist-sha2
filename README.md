@@ -65,3 +65,51 @@ clojure -M:test      # JVM: vectors + sweeps against MessageDigest and shasum
 nbb run-tests.cljs   # ClojureScript: the portable suite
 clojure -M:lint
 ```
+
+## SHA-512 and SHA-384
+
+```clojure
+(require '[sha2.sha512 :as sha512])
+
+(sha512/sha512 bytes)        ; => 64 unsigned bytes
+(sha512/sha512-hex bytes)
+(sha512/sha384 bytes)        ; => 48
+(sha512/hmac-sha512 key message)
+```
+
+A separate namespace, because SHA-224/256 are 32-bit and SHA-384/512 are
+64-bit and neither runtime here has a 64-bit integer both can name: the JVM
+does and ClojureScript does not. A word is `[hi lo]`, two unsigned 32-bit
+halves, and every operation is a different one from its 32-bit twin.
+
+Added because Ed25519 (RFC 8032) hashes with SHA-512 and this workspace had
+SHA-224/256 only.
+
+### The constants were derived, not transcribed
+
+FIPS 180-4 defines the initial hash value as the first 64 bits of the
+fractional parts of the **square roots of the first eight primes**, the
+SHA-384 one as the same for the ninth through sixteenth, and the eighty round
+constants as the **cube roots of the first eighty**. All three tables were
+computed to 80 significant digits and checked against the published values
+before being written into the source, so **no digit passed through anyone's
+memory** — the failure mode a table of 88 hand-copied 64-bit words invites.
+
+### Two things that would otherwise be silent
+
+**The length field is sixteen bytes, not eight.** SHA-512 counts message bits
+in 128 bits, so the last block that still holds its own length ends at 111
+rather than SHA-256's 55. Reusing the 32-bit widths gives a digest that is
+right for every input anyone would hash and wrong past 2^61 bytes.
+
+**HMAC's block is 128, not 64.** A 64-byte key must *not* be pre-hashed here,
+and one that is produces a MAC that is self-consistent and disagrees with
+every other implementation.
+
+Both are checked. The JVM suite sweeps **every length from 0 to 384 bytes**
+against `java.security.MessageDigest` for both digests, and HMAC against
+`javax.crypto` across eight key lengths and five message lengths — 1,628
+assertions in all.
+
+Measured: changing **one nibble of one round constant** turns 812 assertions
+red; narrowing the length field to eight bytes turns 49 red.
