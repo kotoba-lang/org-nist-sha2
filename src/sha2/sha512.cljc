@@ -238,3 +238,25 @@
     (sha512 (concat opad (sha512 (concat ipad (->ints message)))))))
 
 (defn hmac-sha512-hex [key message] (hex (hmac-sha512 key message)))
+
+(defn hmac-sha384
+  "HMAC-SHA-384, FIPS 198-1.
+
+  The block is 128 bytes, the same as SHA-512's -- SHA-384 is SHA-512 with a
+  different IV and a truncated output, and the block size does not change with
+  the truncation. Deriving it from the 48-byte digest instead would produce a
+  self-consistent MAC that disagrees with every other implementation.
+
+  An over-long key is hashed with **SHA-384**, not SHA-512: the key
+  transformation uses the same hash as the MAC, so a 131-byte key becomes 48
+  bytes here and 64 bytes in `hmac-sha512`. RFC 4231's test case 6 is exactly
+  that case, and it is asserted."
+  [key message]
+  (let [k (->ints key)
+        k (if (> (count k) block-bytes) (sha384 k) k)
+        k (vec (concat k (repeat (- block-bytes (count k)) 0)))
+        ipad (mapv #(bit-xor % 0x36) k)
+        opad (mapv #(bit-xor % 0x5C) k)]
+    (sha384 (concat opad (sha384 (concat ipad (->ints message)))))))
+
+(defn hmac-sha384-hex [key message] (hex (hmac-sha384 key message)))
