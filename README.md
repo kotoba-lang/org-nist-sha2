@@ -52,11 +52,16 @@ changes the digest, so the sweep constrains all 64 constants at once.
 
 ## Not implemented
 
-**SHA-384 and SHA-512** are absent. They are the 64-bit variant of the same
-construction, which on ClojureScript means every word becomes a `[hi lo]` pair
-and all 80 round constants become pairs — a separate piece of work, not a small
-extension. Nothing in the workspace needs them today; `.xz`'s SHA-256 check does.
-No SHA-3 either: different construction entirely.
+**No SHA-3**: a different construction entirely, sharing nothing with this one.
+
+This section used to say that SHA-384 and SHA-512 were absent. They were, and
+then they were added — see below — and the sentence saying they were missing
+stayed where it was for the whole time in between. A reader who greps for
+"Not implemented" got a confident wrong answer while the section three
+headings down documented the functions. Recording it here rather than
+deleting it quietly, because the failure is the interesting part: a "what is
+missing" list is a claim about the present tense, and nothing makes it get
+re-read when the present tense changes.
 
 ## Test
 
@@ -75,6 +80,7 @@ clojure -M:lint
 (sha512/sha512-hex bytes)
 (sha512/sha384 bytes)        ; => 48
 (sha512/hmac-sha512 key message)
+(sha512/hmac-sha384 key message)   ; => 48
 ```
 
 A separate namespace, because SHA-224/256 are 32-bit and SHA-384/512 are
@@ -83,7 +89,8 @@ does and ClojureScript does not. A word is `[hi lo]`, two unsigned 32-bit
 halves, and every operation is a different one from its 32-bit twin.
 
 Added because Ed25519 (RFC 8032) hashes with SHA-512 and this workspace had
-SHA-224/256 only.
+SHA-224/256 only. `hmac-sha384` came later, for HKDF-SHA384 — RFC 9180 names
+it as a KDF, and `org-ietf-hpke` could not offer that suite without it.
 
 ### The constants were derived, not transcribed
 
@@ -106,10 +113,16 @@ right for every input anyone would hash and wrong past 2^61 bytes.
 and one that is produces a MAC that is self-consistent and disagrees with
 every other implementation.
 
+**HMAC-SHA-384 hashes an over-long key with SHA-384, not SHA-512.** The two
+MACs share a block size, so the substitution changes nothing until a key
+exceeds 128 bytes — and then it changes everything, silently. RFC 4231's test
+case 6 is that key. Measured: making the substitution turns **exactly one
+assertion** red, and it is that one.
+
 Both are checked. The JVM suite sweeps **every length from 0 to 384 bytes**
 against `java.security.MessageDigest` for both digests, and HMAC against
-`javax.crypto` across eight key lengths and five message lengths — 1,628
-assertions in all.
+`javax.crypto` across eight key lengths and five message lengths, for
+**both** `HmacSHA512` and `HmacSHA384` — 1,670 assertions in all.
 
 Measured: changing **one nibble of one round constant** turns 812 assertions
 red; narrowing the length field to eight bytes turns 49 red.

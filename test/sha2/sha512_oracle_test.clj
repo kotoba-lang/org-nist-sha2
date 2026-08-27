@@ -1,5 +1,5 @@
 (ns sha2.sha512-oracle-test
-  "SHA-512/384 and HMAC-SHA-512 against the JVM's own implementations, over a
+  "SHA-512/384 and HMAC-SHA-512/384 against the JVM's own implementations, over a
   sweep of lengths.
 
   The 88 constants in `sha2.sha512` were derived rather than transcribed, but
@@ -19,10 +19,12 @@
   (sha512/hex (mapv #(bit-and (int %) 0xff)
                     (.digest (MessageDigest/getInstance algorithm) (->bytes data)))))
 
-(defn- reference-hmac [key message]
-  (let [m (Mac/getInstance "HmacSHA512")]
-    (.init m (SecretKeySpec. (->bytes key) "HmacSHA512"))
-    (sha512/hex (mapv #(bit-and (int %) 0xff) (.doFinal m (->bytes message))))))
+(defn- reference-hmac
+  ([key message] (reference-hmac "HmacSHA512" key message))
+  ([algorithm key message]
+   (let [m (Mac/getInstance algorithm)]
+     (.init m (SecretKeySpec. (->bytes key) algorithm))
+     (sha512/hex (mapv #(bit-and (int %) 0xff) (.doFinal m (->bytes message)))))))
 
 (deftest agrees-with-messagedigest-over-every-length-to-three-blocks
   (doseq [n (range 0 385)]
@@ -38,9 +40,17 @@
       ;; javax refuses a zero-length HMAC key, so that one case is ours alone.
       (when (pos? kn)
         (is (= (reference-hmac k m) (sha512/hmac-sha512-hex k m))
-            (str "key " kn " msg " mn))))))
+            (str "SHA-512 key " kn " msg " mn))
+        ;; The key lengths straddle 128 on purpose. HMAC-SHA-384 shares
+        ;; SHA-512's block, so 127/128/129/200 are where an over-long key gets
+        ;; hashed -- with SHA-384, not SHA-512, which is the one substitution
+        ;; that still yields a self-consistent MAC.
+        (is (= (reference-hmac "HmacSHA384" k m) (sha512/hmac-sha384-hex k m))
+            (str "SHA-384 key " kn " msg " mn))))))
 
 (deftest the-oracle-can-fail
   (testing "a differential test that cannot report a difference proves nothing"
     (is (not= (reference "SHA-512" [1]) (reference "SHA-512" [2])))
-    (is (not= (reference "SHA-512" [1]) (reference "SHA-384" [1])))))
+    (is (not= (reference "SHA-512" [1]) (reference "SHA-384" [1])))
+    (is (not= (reference-hmac "HmacSHA384" [1] [2])
+              (reference-hmac "HmacSHA512" [1] [2])))))

@@ -64,3 +64,40 @@
     (let [k (vec (repeat 64 0xaa))]
       (is (not= (sha512/hmac-sha512-hex k (utf8 "x"))
                 (sha512/hmac-sha512-hex (sha512/sha512 k) (utf8 "x")))))))
+
+(deftest hmac-sha384-rfc-4231
+  ;; RFC 4231 §4. HMAC-SHA-384 shares SHA-512's 128-byte block, so the two
+  ;; MACs differ only in the hash -- which is precisely why the long-key case
+  ;; is here: it is the one place where using the wrong one of the two still
+  ;; produces a plausible answer.
+  (testing "test case 1"
+    (is (= (str "afd03944d84895626b0825f4ab46907f"
+                "15f9dadbe4101ec682aa034c7cebc59c"
+                "faea9ea9076ede7f4af152e8b2fa9cb6")
+           (sha512/hmac-sha384-hex (vec (repeat 20 0x0b)) (utf8 "Hi There")))))
+
+  (testing "test case 2 — a key shorter than the block"
+    (is (= (str "af45d2e376484031617f78d2b58a6b1b"
+                "9c7ef464f5a01b47e42ec3736322445e"
+                "8e2240ca5e69e2c78b3239ecfab21649")
+           (sha512/hmac-sha384-hex (utf8 "Jefe")
+                                   (utf8 "what do ya want for nothing?")))))
+
+  (testing "test case 3"
+    (is (= (str "88062608d3e6ad8a0aa2ace014c8a86f"
+                "0aa635d947ac9febe83ef4e55966144b"
+                "2a5ab39dc13814b94e3ab6e101a34f27")
+           (sha512/hmac-sha384-hex (vec (repeat 20 0xaa)) (vec (repeat 50 0xdd))))))
+
+  (testing "test case 6 — a 131-byte key, hashed with SHA-384 and not SHA-512"
+    (is (= (str "4ece084485813e9088d2c63a041bc5b4"
+                "4f9ef1012a2b588f3cd11f05033ac4c6"
+                "0c2ef6ab4030fe8296248df163f44952")
+           (sha512/hmac-sha384-hex
+            (vec (repeat 131 0xaa))
+            (utf8 "Test Using Larger Than Block-Size Key - Hash Key First")))))
+
+  (testing "the 48-byte digest is the output, not a truncated SHA-512 one"
+    (is (= 96 (count (sha512/hmac-sha384-hex (utf8 "k") (utf8 "m")))))
+    (is (not= (sha512/hmac-sha384-hex (utf8 "k") (utf8 "m"))
+              (subs (sha512/hmac-sha512-hex (utf8 "k") (utf8 "m")) 0 96)))))
