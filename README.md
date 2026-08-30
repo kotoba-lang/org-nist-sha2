@@ -63,6 +63,13 @@ deleting it quietly, because the failure is the interesting part: a "what is
 missing" list is a claim about the present tense, and nothing makes it get
 re-read when the present tense changes.
 
+## `@noble/hashes` subpath oracle (ADR-2608301100)
+
+`kotoba/hash/subpath_dispatch` maps each `@noble/hashes/<subpath>` import to a
+first-party target (org-nist-sha2, org-ietf-blake2, crypto, hash, argon2).
+Portable reference: `hash.subpath-dispatch`. Parity:
+`clojure -M:test -n hash.subpath-dispatch-kotoba-parity-test`.
+
 ## Test
 
 ```sh
