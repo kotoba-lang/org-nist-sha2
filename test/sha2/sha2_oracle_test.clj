@@ -8,7 +8,7 @@
    digest, so a sweep over every length through three blocks is a strong check
    on all 64 constants at once."
   (:require [clojure.java.shell :as shell]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]
             [sha2.core :as sha2])
   (:import [java.security MessageDigest]))
