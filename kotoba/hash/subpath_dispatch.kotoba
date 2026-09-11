@@ -6,7 +6,7 @@
 ;;   3 crypto      4 hash            5 org-ietf-argon2
 ;;
 ;; Clojure-shaped twin: `subpath_dispatch.cljk`. Parity:
-;; `test/hash/subpath_dispatch_kotoba_parity_test.clj`.
+;; `test/hash/subpath_dispatch_kotoba_parity_test.cljk`.
 
 (ns hash.subpath-dispatch
   (:export [target-unknown target-org-nist-sha2 target-org-ietf-blake2
