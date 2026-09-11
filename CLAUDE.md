@@ -9,7 +9,7 @@ SHA-224/256 and HMAC-SHA-256, portable `.cljc`, zero dependencies.
 - **Digests are pinned by published vectors and by a length sweep against two
   independent implementations.** There is no checksum for the constant table, so
   this is what stands in for one — do not weaken the sweep.
-- **Both runtimes are gated** (`clojure -M:test`, `nbb run-tests.cljk`).
+- **Both runtimes are gated** (`kbb -M:test`, `kbb --backend sci run-tests.cljk`).
 
 ## Traps
 
