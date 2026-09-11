@@ -68,14 +68,14 @@ re-read when the present tense changes.
 `kotoba/hash/subpath_dispatch` maps each `@noble/hashes/<subpath>` import to a
 first-party target (org-nist-sha2, org-ietf-blake2, crypto, hash, argon2).
 Portable reference: `hash.subpath-dispatch`. Parity:
-`clojure -M:test -n hash.subpath-dispatch-kotoba-parity-test`.
+`kbb -M:test -n hash.subpath-dispatch-kotoba-parity-test`.
 
 ## Test
 
 ```sh
-clojure -M:test      # JVM: vectors + sweeps against MessageDigest and shasum
-nbb run-tests.cljk   # ClojureScript: the portable suite
-clojure -M:lint
+kbb -M:test      # JVM: vectors + sweeps against MessageDigest and shasum
+kbb --backend sci run-tests.cljk   # ClojureScript: the portable suite
+kbb -M:lint
 ```
 
 ## SHA-512 and SHA-384
