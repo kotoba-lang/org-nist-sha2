@@ -74,7 +74,7 @@ Portable reference: `hash.subpath-dispatch`. Parity:
 
 ```sh
 clojure -M:test      # JVM: vectors + sweeps against MessageDigest and shasum
-nbb run-tests.cljs   # ClojureScript: the portable suite
+nbb run-tests.cljk   # ClojureScript: the portable suite
 clojure -M:lint
 ```
 

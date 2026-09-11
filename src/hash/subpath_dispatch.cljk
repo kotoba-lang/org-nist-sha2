@@ -2,7 +2,7 @@
   "Reference routing for `@noble/hashes/*` import subpaths (ADR-2608301100).
 
   Kotoba oracle twin: `kotoba/hash/subpath_dispatch.kotoba`. This namespace is
-  the parity reference for `test/hash/subpath_dispatch_kotoba_parity_test.clj`."
+  the parity reference for `test/hash/subpath_dispatch_kotoba_parity_test.cljk`."
   (:refer-clojure :exclude [dispatch]))
 
 (def target-unknown 0)

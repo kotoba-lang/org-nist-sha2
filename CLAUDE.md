@@ -5,11 +5,11 @@ SHA-224/256 and HMAC-SHA-256, portable `.cljc`, zero dependencies.
 ## Invariants
 
 - **No host hash in `src/`.** `MessageDigest`, `javax.crypto.Mac` and `shasum`
-  appear in `test/sha2/sha2_oracle_test.clj` only, as oracles.
+  appear in `test/sha2/sha2_oracle_test.cljk` only, as oracles.
 - **Digests are pinned by published vectors and by a length sweep against two
   independent implementations.** There is no checksum for the constant table, so
   this is what stands in for one — do not weaken the sweep.
-- **Both runtimes are gated** (`clojure -M:test`, `nbb run-tests.cljs`).
+- **Both runtimes are gated** (`clojure -M:test`, `nbb run-tests.cljk`).
 
 ## Traps
 
