@@ -7,7 +7,7 @@
   off-by-one in the prime list. A single wrong constant, rotation amount or
   padding boundary changes the digest, so sweeping every length through three
   blocks checks all of them at once."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [sha2.sha512 :as sha512])
   (:import [java.security MessageDigest]
            [javax.crypto Mac]
