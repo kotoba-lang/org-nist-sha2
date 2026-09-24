@@ -40,7 +40,11 @@
 
 (defn- u32 [x]
   #?(:clj (bit-and x 0xFFFFFFFF)
-     :cljs (unsigned-bit-shift-right x 0)))
+     :cljs (unsigned-bit-shift-right x 0)
+     ;; Kotoba: integers are i64, so the :clj mask is exact. Without a
+     ;; :default clause the Kotoba reader (features #{:kotoba}) read this
+     ;; body as nothing -- "function body is empty" (adr-2609111900).
+     :default (bit-and x 0xFFFFFFFF)))
 
 (defn- add64 [[ahi alo] [bhi blo]]
   (let [lo (+ alo blo)
