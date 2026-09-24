@@ -1,5 +1,5 @@
 (ns hash.subpath-dispatch-kotoba-parity-test
-  (:require [clojure.java.io :as io]
+  (:require [kotoba.io :as io]
             [kotoba.test :refer [deftest is]]
             [kotoba.compiler.core :as compiler]
             [kotoba.kir :as ir]
@@ -9,7 +9,7 @@
   (io/file (System/getProperty "user.dir") "kotoba/hash/subpath_dispatch.kotoba"))
 
 (defn- source-available? []
-  (let [kotoba? (.exists kotoba-file)]
+  (let [kotoba? (io/exists? kotoba-file)]
     (is kotoba? (str "kotoba object not found at " kotoba-file))
     kotoba?))
 
