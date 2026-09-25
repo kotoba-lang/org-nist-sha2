@@ -2,11 +2,11 @@
   "Runtime-agnostic SHA-512/384 vectors. The JVM suite adds an oracle sweep
   against `java.security.MessageDigest`; this file is what ClojureScript can
   also run."
-  (:require [kotoba.test :refer [deftest is testing]]
+  (:require [kotoba.bytes :as kbytes] [kotoba.test :refer [deftest is testing]]
             [sha2.sha512 :as sha512]))
 
 (defn- utf8 [s]
-  #?(:clj (mapv #(bit-and % 0xFF) (.getBytes ^String s "UTF-8"))
+  #?(:clj (mapv #(bit-and % 0xFF) (kbytes/utf8-bytes ^String s))
      :cljs (vec (array-seq (.encode (js/TextEncoder.) s)))))
 
 ;; ── FIPS 180-4 / NIST examples ───────────────────────────────────────────────
