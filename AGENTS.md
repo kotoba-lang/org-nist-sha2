@@ -1,4 +1,4 @@
-# CLAUDE.md — org-nist-sha2
+# AGENTS.md — org-nist-sha2
 
 SHA-224/256 and HMAC-SHA-256, portable `.cljc`, zero dependencies.
 
