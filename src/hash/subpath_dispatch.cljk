@@ -6,32 +6,61 @@
   {:kotoba/export [dispatch-subpath target-crypto target-hash target-org-ietf-argon2 target-org-ietf-blake2 target-org-nist-sha2 target-unknown]}
   (:refer-clojure :exclude [dispatch]))
 
-(def target-unknown 0)
-(def target-org-nist-sha2 1)
-(def target-org-ietf-blake2 2)
-(def target-crypto 3)
-(def target-hash 4)
-(def target-org-ietf-argon2 5)
+;; Codes: private constants for the bodies below; the public names are a value on
+;; the host (as before) and a zero-argument function on Kotoba, where an export
+;; must name a function (the .kotoba twin exports them the same way).
+(def ^:private code-unknown 0)
+(def ^:private code-nist-sha2 1)
+(def ^:private code-ietf-blake2 2)
+(def ^:private code-crypto 3)
+(def ^:private code-hash 4)
+(def ^:private code-ietf-argon2 5)
 
-(defn- starts-with? [s prefix]
-  (and (<= (count prefix) (count s))
-       (= prefix (subs s 0 (count prefix)))))
+#?(:kotoba (defn target-unknown [] :i64 code-unknown)
+   :default (def target-unknown code-unknown))
+#?(:kotoba (defn target-org-nist-sha2 [] :i64 code-nist-sha2)
+   :default (def target-org-nist-sha2 code-nist-sha2))
+#?(:kotoba (defn target-org-ietf-blake2 [] :i64 code-ietf-blake2)
+   :default (def target-org-ietf-blake2 code-ietf-blake2))
+#?(:kotoba (defn target-crypto [] :i64 code-crypto)
+   :default (def target-crypto code-crypto))
+#?(:kotoba (defn target-hash [] :i64 code-hash)
+   :default (def target-hash code-hash))
+#?(:kotoba (defn target-org-ietf-argon2 [] :i64 code-ietf-argon2)
+   :default (def target-org-ietf-argon2 code-ietf-argon2))
 
-(defn- sha2-family? [sub]
+;; Dual-runtime (the posix-path idiom): `#?@(:kotoba ...)` adds the parameter
+;; and result types Kotoba needs; the host keeps the untyped Clojure it always ran.
+(defn- starts-with? [#?@(:kotoba [s :string prefix :string] :default [s prefix])]
+  #?@(:kotoba [:bool])
+  #?(:kotoba (if (< (string-length s) (string-length prefix))
+               false
+               (string=? (string-substring s 0 (string-length prefix)) prefix))
+     :default (and (<= (count prefix) (count s))
+                   (= prefix (subs s 0 (count prefix))))))
+
+(defn- one-of? [#?@(:kotoba [sub :string a :string b :string c :string d :string]
+                    :default [sub a b c d])]
+  #?@(:kotoba [:bool])
+  (or (= sub a) (= sub b) (= sub c) (= sub d)))
+
+(defn- sha2-family? [#?@(:kotoba [sub :string] :default [sub])]
+  #?@(:kotoba [:bool])
   (or (= sub "sha2")
-      (#{"sha256" "sha224" "sha384" "sha512"} sub)
+      (one-of? sub "sha256" "sha224" "sha384" "sha512")
       (starts-with? sub "sha2")))
 
 (defn dispatch-subpath
   "Map a `@noble/hashes` subpath (no `@noble/hashes/` prefix, no `.js`) to a
   target code. Unknown subpaths return `target-unknown`."
-  [sub]
+  [#?@(:kotoba [sub :string] :default [sub])]
+  #?@(:kotoba [:i64])
   (cond
-    (sha2-family? sub) target-org-nist-sha2
-    (= sub "hmac") target-org-nist-sha2
+    (sha2-family? sub) code-nist-sha2
+    (= sub "hmac") code-nist-sha2
     (or (= sub "blake2") (= sub "blake2s") (= sub "blake2b")
-        (starts-with? sub "blake2")) target-org-ietf-blake2
-    (#{"hkdf" "pbkdf2"} sub) target-crypto
-    (#{"sha1" "legacy"} sub) target-hash
-    (= sub "argon2") target-org-ietf-argon2
-    :else target-unknown))
+        (starts-with? sub "blake2")) code-ietf-blake2
+    (or (= sub "hkdf") (= sub "pbkdf2")) code-crypto
+    (or (= sub "sha1") (= sub "legacy")) code-hash
+    (= sub "argon2") code-ietf-argon2
+    :else code-unknown))
