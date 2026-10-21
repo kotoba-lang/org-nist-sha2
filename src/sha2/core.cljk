@@ -67,7 +67,7 @@
                 (if (<= r 56) (- 56 r) (- 120 r)))
         hi (quot bits 4294967296)
         lo (mod bits 4294967296)
-        len (mapv #(bit-and % 0xff)
+        len (mapv (fn [x] (bit-and x 0xff))
                   [(quot hi 16777216) (quot hi 65536) (quot hi 256) hi
                    (quot lo 16777216) (quot lo 65536) (quot lo 256) lo])]
     (into (into (into (vec data) [0x80]) (repeat zeros 0)) len)))
@@ -153,8 +153,8 @@
   (let [k' (let [kv (vec key)]
              (if (> (count kv) block-size) (sha256 kv) kv))
         k' (into k' (repeat (- block-size (count k')) 0))
-        ipad (mapv #(bit-xor % 0x36) k')
-        opad (mapv #(bit-xor % 0x5c) k')]
+        ipad (mapv (fn [x] (bit-xor x 0x36)) k')
+        opad (mapv (fn [x] (bit-xor x 0x5c)) k')]
     (sha256 (into opad (sha256 (into ipad (vec message)))))))
 
 (defn hmac-sha256-hex [key message] (hex (hmac-sha256 key message)))

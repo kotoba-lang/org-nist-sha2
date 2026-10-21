@@ -182,7 +182,7 @@
 
 (def ^:private block-bytes 128)
 
-(defn- ->ints [data] (mapv #(bit-and (int %) 0xFF) (seq data)))
+(defn- ->ints [data] (mapv (fn [x] (bit-and (int x) 0xFF)) (seq data)))
 
 (defn- pad
   "FIPS 180-4 §5.1.2: a 1 bit, zeros, then the length as a 128-BIT big-endian
@@ -238,8 +238,8 @@
   (let [k (->ints key)
         k (if (> (count k) block-bytes) (sha512 k) k)
         k (vec (concat k (repeat (- block-bytes (count k)) 0)))
-        ipad (mapv #(bit-xor % 0x36) k)
-        opad (mapv #(bit-xor % 0x5C) k)]
+        ipad (mapv (fn [x] (bit-xor x 0x36)) k)
+        opad (mapv (fn [x] (bit-xor x 0x5C)) k)]
     (sha512 (concat opad (sha512 (concat ipad (->ints message)))))))
 
 (defn hmac-sha512-hex [key message] (hex (hmac-sha512 key message)))
@@ -260,8 +260,8 @@
   (let [k (->ints key)
         k (if (> (count k) block-bytes) (sha384 k) k)
         k (vec (concat k (repeat (- block-bytes (count k)) 0)))
-        ipad (mapv #(bit-xor % 0x36) k)
-        opad (mapv #(bit-xor % 0x5C) k)]
+        ipad (mapv (fn [x] (bit-xor x 0x36)) k)
+        opad (mapv (fn [x] (bit-xor x 0x5C)) k)]
     (sha384 (concat opad (sha384 (concat ipad (->ints message)))))))
 
 (defn hmac-sha384-hex [key message] (hex (hmac-sha384 key message)))
