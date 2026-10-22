@@ -14,6 +14,18 @@ retired. No native CI gate is registered by this change, and no native
 qualification follows from its removal. Native compilation, full corpus
 execution, artifact admission and caller integration remain open.
 
+## Canonical core source candidate
+
+`src/sha2/core.kotoba` implements all eight `sha2.core` exports with typed
+`:vector-i64` byte inputs/results and no imports or host digest. It is a
+source candidate pending native qualification. Its 16-word schedule, virtual
+padding and virtual HMAC prefix/message avoid allocating a whole padded or
+joined input. All message blocks are processed; resource limits still apply.
+
+See [the complete port scope and evidence](docs/canonical-core-port.md).
+The retained `.cljk` file is provenance, not a supported fallback. Publication
+of this source does not switch downstream locks or qualify any artifact.
+
 ## Complete `sha2.core` surface
 
 | Export | Inputs | Result |

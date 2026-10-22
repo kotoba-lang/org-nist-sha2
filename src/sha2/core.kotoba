@@ -1,0 +1,264 @@
+;; Complete canonical sha2.core source candidate. No hosted digest provider.
+;; Public inputs/results remain vectors of unsigned byte words.
+(ns sha2.core
+  {:kotoba/export [hex hmac-sha256 hmac-sha256-hex sha224 sha224-hex sha256 sha256-hex u32]}
+  (:schemas
+   {:sha2.core/state
+    [:record :sha2.core/state
+     [[:h0 :i64] [:h1 :i64] [:h2 :i64] [:h3 :i64]
+      [:h4 :i64] [:h5 :i64] [:h6 :i64] [:h7 :i64]]]}))
+
+;; Keep the historical public signed-int32 -> unsigned-word conversion.
+;; Internal sums are separately masked, so all working words are 0..2^32-1.
+(defn u32 [x :i64] :i64
+  (if (< x 0) (+ x 4294967296) x))
+
+(defn- m32 [x :i64] :i64
+  (bit-and x 4294967295))
+
+;; Every shift count is a literal; no host int32 or runtime shift semantics.
+(defn- sigma0 [x :i64] :i64
+  (bit-xor
+   (bit-xor (bit-or (u64-shift-right x 2) (i64-shift-left (bit-and x 3) 30))
+            (bit-or (u64-shift-right x 13) (i64-shift-left (bit-and x 8191) 19)))
+   (bit-or (u64-shift-right x 22) (i64-shift-left (bit-and x 4194303) 10))))
+
+(defn- sigma1 [x :i64] :i64
+  (bit-xor
+   (bit-xor (bit-or (u64-shift-right x 6) (i64-shift-left (bit-and x 63) 26))
+            (bit-or (u64-shift-right x 11) (i64-shift-left (bit-and x 2047) 21)))
+   (bit-or (u64-shift-right x 25) (i64-shift-left (bit-and x 33554431) 7))))
+
+(defn- small0 [x :i64] :i64
+  (bit-xor
+   (bit-xor (bit-or (u64-shift-right x 7) (i64-shift-left (bit-and x 127) 25))
+            (bit-or (u64-shift-right x 18) (i64-shift-left (bit-and x 262143) 14)))
+   (u64-shift-right x 3)))
+
+(defn- small1 [x :i64] :i64
+  (bit-xor
+   (bit-xor (bit-or (u64-shift-right x 17) (i64-shift-left (bit-and x 131071) 15))
+            (bit-or (u64-shift-right x 19) (i64-shift-left (bit-and x 524287) 13)))
+   (u64-shift-right x 10)))
+
+;; Literal values are copied from the owning core's complete 64-entry table.
+;; ROUND is always 0..63 in compress; its private fallback is unreachable.
+(defn- round-k [round :i64] :i64
+  (case round
+    0 1116352408
+    1 1899447441
+    2 3049323471
+    3 3921009573
+    4 961987163
+    5 1508970993
+    6 2453635748
+    7 2870763221
+    8 3624381080
+    9 310598401
+    10 607225278
+    11 1426881987
+    12 1925078388
+    13 2162078206
+    14 2614888103
+    15 3248222580
+    16 3835390401
+    17 4022224774
+    18 264347078
+    19 604807628
+    20 770255983
+    21 1249150122
+    22 1555081692
+    23 1996064986
+    24 2554220882
+    25 2821834349
+    26 2952996808
+    27 3210313671
+    28 3336571891
+    29 3584528711
+    30 113926993
+    31 338241895
+    32 666307205
+    33 773529912
+    34 1294757372
+    35 1396182291
+    36 1695183700
+    37 1986661051
+    38 2177026350
+    39 2456956037
+    40 2730485921
+    41 2820302411
+    42 3259730800
+    43 3345764771
+    44 3516065817
+    45 3600352804
+    46 4094571909
+    47 275423344
+    48 430227734
+    49 506948616
+    50 659060556
+    51 883997877
+    52 958139571
+    53 1322822218
+    54 1537002063
+    55 1747873779
+    56 1955562222
+    57 2024104815
+    58 2227730452
+    59 2361852424
+    60 2428436474
+    61 2756734187
+    62 3204031479
+    63 3329325298
+    0))
+
+(defn- initial-state [short? :bool] [:ref :sha2.core/state]
+  (if short?
+    (record-new [:ref :sha2.core/state] 3238371032 914150663 812702999 4144912697 4290775857 1750603025 1694076839 3204075428)
+    (record-new [:ref :sha2.core/state] 1779033703 3144134277 1013904242 2773480762 1359893119 2600822924 528734635 1541459225)))
+
+;; A full 64-bit big-endian bit length, using literal u64 shift counts.
+(defn- length-byte [bits :i64 index :i64] :i64
+  (bit-and
+   (case index
+     0 (u64-shift-right bits 56) 1 (u64-shift-right bits 48)
+     2 (u64-shift-right bits 40) 3 (u64-shift-right bits 32)
+     4 (u64-shift-right bits 24) 5 (u64-shift-right bits 16)
+     6 (u64-shift-right bits 8) bits)
+   255))
+
+;; Virtual PREFIX || MESSAGE || 0x80 || zeroes || uint64be(bit-length).
+;; No joined/padded message vector is allocated, including HMAC inputs whose
+;; virtual joined span crosses a per-value vector bound.
+(defn- padded-byte [prefix :vector-i64 message :vector-i64 total :i64 padded :i64 index :i64] :i64
+  (let [prefix-length (vector-count prefix)]
+    (cond
+      (< index prefix-length) (vector-at prefix index)
+      (< index total) (vector-at message (- index prefix-length))
+      (= index total) 128
+      (< index (- padded 8)) 0
+      :else (length-byte (* total 8) (- index (- padded 8))))))
+
+(defn- block-word [prefix :vector-i64 message :vector-i64 total :i64 padded :i64 index :i64] :i64
+  (+ (+ (* 16777216 (padded-byte prefix message total padded index))
+        (* 65536 (padded-byte prefix message total padded (+ index 1))))
+     (+ (* 256 (padded-byte prefix message total padded (+ index 2)))
+        (padded-byte prefix message total padded (+ index 3)))))
+
+(defn- block-schedule [prefix :vector-i64 message :vector-i64 total :i64 padded :i64 offset :i64]
+  :vector-i64
+  (loop [index 0 words (vector-alloc 16)]
+    (if (= index 16) words
+      (recur (+ index 1)
+        (vector-assoc words index (block-word prefix message total padded (+ offset (* index 4))))))))
+
+;; The sixteen-word ring holds W[t-16] through W[t-1] before round t.
+;; Read all dependencies before publishing W[t] at t mod 16. Ordinary
+;; persistent vector-assoc preserves semantics even without affine rewriting.
+(defn- compress [state [:ref :sha2.core/state] words :vector-i64] [:ref :sha2.core/state]
+  (loop [round 0 schedule words
+         a (record-get [:ref :sha2.core/state] state :h0)
+         b (record-get [:ref :sha2.core/state] state :h1)
+         c (record-get [:ref :sha2.core/state] state :h2)
+         d (record-get [:ref :sha2.core/state] state :h3)
+         e (record-get [:ref :sha2.core/state] state :h4)
+         f (record-get [:ref :sha2.core/state] state :h5)
+         g (record-get [:ref :sha2.core/state] state :h6)
+         h (record-get [:ref :sha2.core/state] state :h7)]
+    (if (= round 64)
+      (record-new [:ref :sha2.core/state]
+        (m32 (+ (record-get [:ref :sha2.core/state] state :h0) a))
+        (m32 (+ (record-get [:ref :sha2.core/state] state :h1) b))
+        (m32 (+ (record-get [:ref :sha2.core/state] state :h2) c))
+        (m32 (+ (record-get [:ref :sha2.core/state] state :h3) d))
+        (m32 (+ (record-get [:ref :sha2.core/state] state :h4) e))
+        (m32 (+ (record-get [:ref :sha2.core/state] state :h5) f))
+        (m32 (+ (record-get [:ref :sha2.core/state] state :h6) g))
+        (m32 (+ (record-get [:ref :sha2.core/state] state :h7) h)))
+      (let [slot (bit-and round 15)
+            word (if (< round 16) (vector-at schedule slot)
+                   (m32 (+ (+ (vector-at schedule slot)
+                              (small0 (vector-at schedule (bit-and (- round 15) 15))))
+                           (+ (vector-at schedule (bit-and (- round 7) 15))
+                              (small1 (vector-at schedule (bit-and (- round 2) 15)))))))
+            next-schedule (if (< round 16) schedule (vector-assoc schedule slot word))
+            choose (bit-xor (bit-and e f) (bit-and (- 4294967295 e) g))
+            majority (bit-xor (bit-xor (bit-and a b) (bit-and a c)) (bit-and b c))
+            t1 (m32 (+ (+ h (sigma1 e)) (+ choose (+ (round-k round) word))))
+            t2 (m32 (+ (sigma0 a) majority))]
+        (recur (+ round 1) next-schedule (m32 (+ t1 t2)) a b c (m32 (+ d t1)) e f g)))))
+
+(defn- state-word [state [:ref :sha2.core/state] index :i64] :i64
+  (case index
+    0 (record-get [:ref :sha2.core/state] state :h0)
+    1 (record-get [:ref :sha2.core/state] state :h1)
+    2 (record-get [:ref :sha2.core/state] state :h2)
+    3 (record-get [:ref :sha2.core/state] state :h3)
+    4 (record-get [:ref :sha2.core/state] state :h4)
+    5 (record-get [:ref :sha2.core/state] state :h5)
+    6 (record-get [:ref :sha2.core/state] state :h6)
+    7 (record-get [:ref :sha2.core/state] state :h7)
+    0))
+
+(defn- word-byte [word :i64 index :i64] :i64
+  (bit-and
+    (case index
+      0 (u64-shift-right word 24) 1 (u64-shift-right word 16)
+      2 (u64-shift-right word 8) word)
+    255))
+
+(defn- emit-digest [state [:ref :sha2.core/state] words :i64] :vector-i64
+  (let [length (* words 4)]
+    (loop [index 0 out (vector-alloc length)]
+      (if (= index length) out
+        (recur (+ index 1)
+          (vector-assoc out index
+            (word-byte (state-word state (quot index 4)) (bit-and index 3))))))))
+
+(defn- digest [initial [:ref :sha2.core/state] words :i64 prefix :vector-i64 message :vector-i64]
+  :vector-i64
+  (let [total (+ (vector-count prefix) (vector-count message))
+        padded (* 64 (+ 1 (quot (+ total 8) 64)))]
+    (loop [offset 0 state initial]
+      (if (= offset padded) (emit-digest state words)
+        (recur (+ offset 64)
+          (compress state (block-schedule prefix message total padded offset)))))))
+
+(defn sha256 [data :vector-i64] :vector-i64
+  (digest (initial-state false) 8 (vector-alloc 0) data))
+
+(defn sha224 [data :vector-i64] :vector-i64
+  (digest (initial-state true) 7 (vector-alloc 0) data))
+
+(defn hex [bytes :vector-i64] :string
+  (let [digits "0123456789abcdef"]
+    (loop [index 0 out ""]
+      (if (= index (vector-count bytes)) out
+        (let [byte (vector-at bytes index) high (quot byte 16) low (bit-and byte 15)]
+          (recur (+ index 1)
+            (string-concat out
+              (string-concat (string-substring digits high (+ high 1))
+                             (string-substring digits low (+ low 1))))))))))
+
+(defn sha256-hex [data :vector-i64] :string
+  (hex (sha256 data)))
+
+(defn sha224-hex [data :vector-i64] :string
+  (hex (sha224 data)))
+
+(defn- key-block [key :vector-i64 xor-byte :i64] :vector-i64
+  (let [length (vector-count key)]
+    (loop [index 0 out (vector-alloc 64)]
+      (if (= index 64) out
+        (recur (+ index 1)
+          (vector-assoc out index
+            (bit-xor (if (< index length) (vector-at key index) 0) xor-byte)))))))
+
+(defn hmac-sha256 [key :vector-i64 message :vector-i64] :vector-i64
+  (let [reduced (if (> (vector-count key) 64) (sha256 key) key)
+        ipad (key-block reduced 54)
+        opad (key-block reduced 92)
+        inner (digest (initial-state false) 8 ipad message)]
+    (digest (initial-state false) 8 opad inner)))
+
+(defn hmac-sha256-hex [key :vector-i64 message :vector-i64] :string
+  (hex (hmac-sha256 key message)))
